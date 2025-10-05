@@ -1,4 +1,11 @@
 # Environment and secrets
 .env.local
+*.db
 *.sqlite3
-__pycache__/
+pycache/
+*.py[cod]
+.venv/
+.DS_Store
+Thumbs.db
+.streamlit/secrets.toml
+
