@@ -9,4 +9,4 @@ st.set_page_config(page_title=APP_TITLE, layout="wide")
 init_db()
 
 st.title("Because it’s there.")
-st.text("ーSince the highest peak is there, how could we not climb it?ー")
+st.text("ーそこに最高峰があるのに、なぜ登らずにいられようかー")
