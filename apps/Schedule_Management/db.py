@@ -1,16 +1,3 @@
-# =============================
-# requirements.txt（参考）
-# -----------------------------
-# streamlit>=1.36
-# msal>=1.28
-# requests>=2.32
-# pandas>=2.2
-# python-dateutil>=2.9
-# pytz
-# altair>=5.2
-# =============================
-
-
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -509,9 +496,6 @@ def create_event_from_candidate(access_token, date, title, start_time, end_time)
         return None
     return r.json()
 
-# =============================
-# utils.py（共通）
-# -----------------------------
 from datetime import date, datetime
 
 def today_iso():
@@ -579,5 +563,6 @@ def delete_from_trash(item_id: int) -> int:
         cur = conn.cursor()
         cur.execute("DELETE FROM candidate_trash WHERE id = ?", (item_id,))
         return cur.rowcount
+
 
 
