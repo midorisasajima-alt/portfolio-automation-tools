@@ -5,7 +5,7 @@ from datetime import date
 from typing import List, Tuple, Optional
 
 DB_PATH = Path(__file__).parent / "kaji_tasks.db"
-BASE_DATE = date(2025, 9, 7)  # 起点
+BASE_DATE = date(2025, 9, 7)  # baseline (origin date)
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
@@ -22,7 +22,7 @@ def init_db():
         remainder INTEGER NOT NULL
     );
     """)
-    # 同一家事に対して繰越は一意（重複作成を防止）
+    # Carryover is unique per chore (prevent duplicates for the same chore)
     cur.execute("""
     CREATE TABLE IF NOT EXISTS carryovers(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,12 +31,12 @@ def init_db():
         FOREIGN KEY(chore_id) REFERENCES chores(id) ON DELETE CASCADE
     );
     """)
-    # その日の「完了」を記録して当日の再表示を抑制（必要に応じて参照）
+    # Record the day's "completed" to suppress re-showing on that day (refer as needed)
     cur.execute("""
     CREATE TABLE IF NOT EXISTS done_log(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         chore_id INTEGER NOT NULL,
-        done_date TEXT NOT NULL,                 -- 'YYYY-MM-DD'（ローカル日付）
+        done_date TEXT NOT NULL,                 -- 'YYYY-MM-DD' (local date)
         UNIQUE(chore_id, done_date),
         FOREIGN KEY(chore_id) REFERENCES chores(id) ON DELETE CASCADE
     );
@@ -46,16 +46,16 @@ def init_db():
 
 def ensure_chore(name: str, mod: int, remainder: int) -> int:
     name = (name or "").strip()
-    if not name: raise ValueError("家事名は必須です。")
-    if not isinstance(mod, int) or mod <= 0: raise ValueError("mod は正の整数です。")
+    if not name: raise ValueError("Chore name is required.")
+    if not isinstance(mod, int) or mod <= 0: raise ValueError("mod must be a positive integer.")
     if not isinstance(remainder, int) or not (0 <= remainder < mod):
-        raise ValueError("余りは 0 以上 mod 未満の整数です。")
+        raise ValueError("Remainder must be an integer in [0, mod).")
     conn = get_conn(); cur = conn.cursor()
     cur.execute("INSERT OR IGNORE INTO chores(name, mod, remainder) VALUES(?,?,?)", (name, mod, remainder))
     conn.commit()
     cur.execute("SELECT id FROM chores WHERE name=?", (name,))
     row = cur.fetchone(); conn.close()
-    if not row: raise RuntimeError("家事の作成/取得に失敗しました。")
+    if not row: raise RuntimeError("Failed to create or fetch the chore.")
     return row[0]
 
 def list_chores() -> List[Tuple[int, str, int, int]]:
@@ -65,16 +65,16 @@ def list_chores() -> List[Tuple[int, str, int, int]]:
 
 def update_chore(chore_id: int, name: str, mod: int, remainder: int):
     name = (name or "").strip()
-    if not name: raise ValueError("家事名は空にできません。")
-    if mod <= 0: raise ValueError("mod は正の整数です。")
-    if not (0 <= remainder < mod): raise ValueError("余りは 0 以上 mod 未満。")
+    if not name: raise ValueError("Chore name cannot be empty.")
+    if mod <= 0: raise ValueError("mod must be a positive integer.")
+    if not (0 <= remainder < mod): raise ValueError("Remainder must be in [0, mod).")
     conn = get_conn(); cur = conn.cursor()
     try:
         cur.execute("UPDATE chores SET name=?, mod=?, remainder=? WHERE id=?", (name, mod, remainder, chore_id))
-        if cur.rowcount == 0: raise ValueError("対象が見つかりません。")
+        if cur.rowcount == 0: raise ValueError("Target record not found.")
         conn.commit()
     except sqlite3.IntegrityError:
-        conn.rollback(); raise ValueError("同名の家事が既に存在します。")
+        conn.rollback(); raise ValueError("A chore with the same name already exists.")
     finally:
         conn.close()
 
@@ -82,7 +82,7 @@ def delete_chore(chore_id: int):
     conn = get_conn(); cur = conn.cursor()
     cur.execute("DELETE FROM chores WHERE id=?", (chore_id,))
     if cur.rowcount == 0:
-        conn.close(); raise ValueError("対象が見つかりません。")
+        conn.close(); raise ValueError("Target record not found.")
     conn.commit(); conn.close()
 
 def add_carryover(chore_id: int):
@@ -91,7 +91,7 @@ def add_carryover(chore_id: int):
     conn.commit(); conn.close()
 
 def list_carryovers() -> List[Tuple[int, int, str, int, int]]:
-    """戻り値: [(carry_id, chore_id, name, mod, remainder)]"""
+    """Return: [(carry_id, chore_id, name, mod, remainder)]"""
     conn = get_conn(); cur = conn.cursor()
     cur.execute("""
         SELECT c.id, ch.id, ch.name, ch.mod, ch.remainder
@@ -123,9 +123,9 @@ def days_since_base(d: Optional[date] = None) -> int:
 
 def todays_chores(d: Optional[date] = None) -> List[Tuple[int, str, int, int]]:
     """
-    carryover に載っているものは除外。
-    done_log で当日完了済みのものも除外。
-    戻り値: [(chore_id, name, mod, remainder)]
+    Exclude chores listed in carryovers.
+    Also exclude chores already completed today (in done_log).
+    Return: [(chore_id, name, mod, remainder)]
     """
     d = d or date.today()
     daycnt = days_since_base(d)
@@ -144,6 +144,6 @@ def todays_chores(d: Optional[date] = None) -> List[Tuple[int, str, int, int]]:
             continue
         if m > 0 and (daycnt % m) == rmd:
             out.append((cid, nm, m, rmd))
-    # 表示順は名前昇順
+    # Sort by name (ascending)
     out.sort(key=lambda x: x[1].lower())
     return out
