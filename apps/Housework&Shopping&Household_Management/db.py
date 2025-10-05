@@ -163,7 +163,7 @@ def ensure_item(genre_id: int, name: str, unit: str) -> int:
     name = name.strip()
     unit = unit.strip()
     if not name or not unit:
-        raise ValueError("品目名と単位は必須です。")
+        raise ValueError("Item name and unit are required.")
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("INSERT OR IGNORE INTO items(genre_id, name, unit) VALUES (?, ?, ?)", (genre_id, name, unit))
@@ -172,12 +172,12 @@ def ensure_item(genre_id: int, name: str, unit: str) -> int:
     row = cur.fetchone()
     conn.close()
     if not row:
-        raise RuntimeError("品目の作成または取得に失敗しました。")
+        raise RuntimeError("Failed to create or retrieve the item.")
     return row[0]
 
 def insert_purchase(item_id: int, date_iso: str, store_id: int, qty: float, total: float, payment_id: int):
     if qty <= 0:
-        raise ValueError("数量は正の値が必要です。")
+        raise ValueError("Quantity must be positive.")
     unit_price = total / qty if qty else 0.0
     conn = get_conn()
     cur = conn.cursor()
@@ -188,16 +188,16 @@ def insert_purchase(item_id: int, date_iso: str, store_id: int, qty: float, tota
     """, (item_id, date_iso, store_id, qty, total, unit_price, payment_id))
 
     month = date_iso[:7]
-    # genre
+    # get item's genre
     cur.execute("SELECT genre_id FROM items WHERE id=?", (item_id,))
     row = cur.fetchone()
     if not row:
         conn.rollback()
         conn.close()
-        raise ValueError("不正な品目です。")
+        raise ValueError("Invalid item.")
     genre_id = row[0]
 
-    # genre monthly summary
+    # genre monthly summary (upsert)
     cur.execute("""
         INSERT INTO monthly_genre_summary(month, genre_id, total_amount)
         VALUES (?, ?, ?)
@@ -210,7 +210,7 @@ def insert_purchase(item_id: int, date_iso: str, store_id: int, qty: float, tota
         VALUES (?, ?, ?)
     """, (month, genre_id, item_id))
 
-    # payment monthly summary
+    # payment monthly summary (upsert)
     cur.execute("""
         INSERT INTO monthly_payment_summary(month, payment_id, total_amount)
         VALUES (?, ?, ?)
@@ -274,35 +274,35 @@ def get_purchases_by_genre_item(genre_id: int, item_id: int | None):
     return rows
 
 def update_purchase(purchase_id: int, date_iso: str, store_id: int, qty: float, total: float, payment_id: int):
-    """Update a purchase and maintain monthly summaries accordingly (idempotent, atomic)."""
+    """Update a purchase and adjust monthly summaries accordingly (idempotent, atomic)."""
     if qty <= 0:
-        raise ValueError("数量は正の値が必要です。")
+        raise ValueError("Quantity must be positive.")
 
     conn = get_conn()
     cur = conn.cursor()
     try:
         cur.execute("BEGIN")
 
-        # 旧値の取得
+        # fetch current values
         cur.execute("""
             SELECT p.item_id, p.date, p.total_amount, p.payment_id
             FROM purchases p WHERE p.id = ?
         """, (purchase_id,))
         row = cur.fetchone()
         if not row:
-            raise ValueError("対象レコードが見つかりません。")
+            raise ValueError("Target record not found.")
         item_id, old_date, old_total, old_payment_id = row
         old_month = old_date[:7]
         new_month = date_iso[:7]
 
-        # 品目のジャンル
+        # item's genre
         cur.execute("SELECT genre_id FROM items WHERE id=?", (item_id,))
         r = cur.fetchone()
         if not r:
-            raise ValueError("不正な品目です。")
+            raise ValueError("Invalid item.")
         genre_id = r[0]
 
-        # 旧・月×ジャンル サマリを減算（0なら削除）
+        # decrement old month×genre (delete row if 0)
         cur.execute("SELECT total_amount FROM monthly_genre_summary WHERE month=? AND genre_id=?", (old_month, genre_id))
         r = cur.fetchone()
         if r:
@@ -312,7 +312,7 @@ def update_purchase(purchase_id: int, date_iso: str, store_id: int, qty: float, 
             else:
                 cur.execute("UPDATE monthly_genre_summary SET total_amount=? WHERE month=? AND genre_id=?", (new_total_amt, old_month, genre_id))
 
-        # 旧・月×支払い手段 サマリを減算（0なら削除）
+        # decrement old month×payment (delete row if 0)
         cur.execute("SELECT total_amount FROM monthly_payment_summary WHERE month=? AND payment_id=?", (old_month, old_payment_id))
         r = cur.fetchone()
         if r:
@@ -322,7 +322,7 @@ def update_purchase(purchase_id: int, date_iso: str, store_id: int, qty: float, 
             else:
                 cur.execute("UPDATE monthly_payment_summary SET total_amount=? WHERE month=? AND payment_id=?", (new_total_amt, old_month, old_payment_id))
 
-        # 購入レコードの更新
+        # update purchase
         unit_price = total / qty
         cur.execute("""
             UPDATE purchases
@@ -330,7 +330,7 @@ def update_purchase(purchase_id: int, date_iso: str, store_id: int, qty: float, 
             WHERE id=?
         """, (date_iso, store_id, qty, total, unit_price, payment_id, purchase_id))
 
-        # 新・月×ジャンル サマリを加算（upsert）
+        # increment new month×genre (upsert)
         cur.execute("""
             INSERT INTO monthly_genre_summary(month, genre_id, total_amount)
             VALUES (?, ?, ?)
@@ -338,7 +338,7 @@ def update_purchase(purchase_id: int, date_iso: str, store_id: int, qty: float, 
             DO UPDATE SET total_amount = total_amount + excluded.total_amount
         """, (new_month, genre_id, total))
 
-        # 新・月×支払い手段 サマリを加算（upsert）
+        # increment new month×payment (upsert)
         cur.execute("""
             INSERT INTO monthly_payment_summary(month, payment_id, total_amount)
             VALUES (?, ?, ?)
@@ -346,13 +346,13 @@ def update_purchase(purchase_id: int, date_iso: str, store_id: int, qty: float, 
             DO UPDATE SET total_amount = total_amount + excluded.total_amount
         """, (new_month, payment_id, total))
 
-        # membership の整備
+        # membership
         cur.execute("""
             INSERT OR IGNORE INTO monthly_genre_items(month, genre_id, item_id)
             VALUES (?, ?, ?)
         """, (new_month, genre_id, item_id))
 
-        # 月が変わった場合は旧月の membership を掃除
+        # if month changed, clean old membership when no purchases remain
         if old_month != new_month:
             cur.execute("""
                 SELECT COUNT(*) FROM purchases WHERE item_id=? AND substr(date,1,7)=?
@@ -376,7 +376,7 @@ def delete_purchase(purchase_id: int):
     try:
         cur.execute("BEGIN")
 
-        # 対象行の取得（無ければ冪等に終了）
+        # fetch target row (no-op if missing)
         cur.execute("""
             SELECT p.item_id, p.date, p.total_amount, p.payment_id
             FROM purchases p
@@ -384,13 +384,13 @@ def delete_purchase(purchase_id: int):
         """, (purchase_id,))
         row = cur.fetchone()
         if not row:
-            cur.execute("ROLLBACK")  # 何もしていないが整合
+            cur.execute("ROLLBACK")
             return
 
         item_id, date_iso, total, payment_id = row
         month = date_iso[:7]
 
-        # 品目のジャンル取得（無ければ冪等に終了）
+        # item's genre (no-op if missing)
         cur.execute("SELECT genre_id FROM items WHERE id=?", (item_id,))
         row = cur.fetchone()
         if not row:
@@ -398,7 +398,7 @@ def delete_purchase(purchase_id: int):
             return
         genre_id = row[0]
 
-        # 月×ジャンル サマリ減算（0 未満防止＆必要なら0行削除）
+        # decrement month×genre
         cur.execute("""
             SELECT total_amount FROM monthly_genre_summary
             WHERE month=? AND genre_id=?
@@ -407,7 +407,6 @@ def delete_purchase(purchase_id: int):
         if r:
             new_total = max(0.0, float(r[0]) - float(total))
             if new_total == 0.0:
-                # 方針1: 0 行は削除
                 cur.execute("""
                     DELETE FROM monthly_genre_summary
                     WHERE month=? AND genre_id=?
@@ -419,7 +418,7 @@ def delete_purchase(purchase_id: int):
                     WHERE month=? AND genre_id=?
                 """, (new_total, month, genre_id))
 
-        # 月×支払い手段 サマリ減算（同様）
+        # decrement month×payment
         cur.execute("""
             SELECT total_amount FROM monthly_payment_summary
             WHERE month=? AND payment_id=?
@@ -428,7 +427,6 @@ def delete_purchase(purchase_id: int):
         if r:
             new_total = max(0.0, float(r[0]) - float(total))
             if new_total == 0.0:
-                # 方針1: 0 行は削除（方針2として残す場合は UPDATE に置換）
                 cur.execute("""
                     DELETE FROM monthly_payment_summary
                     WHERE month=? AND payment_id=?
@@ -440,10 +438,10 @@ def delete_purchase(purchase_id: int):
                     WHERE month=? AND payment_id=?
                 """, (new_total, month, payment_id))
 
-        # 購入レコード削除
+        # delete purchase row
         cur.execute("DELETE FROM purchases WHERE id=?", (purchase_id,))
 
-        # monthly_genre_items の整合
+        # clean monthly_genre_items if no purchases remain for this item in that month
         cur.execute("""
             SELECT COUNT(*)
             FROM purchases
@@ -465,7 +463,7 @@ def delete_purchase(purchase_id: int):
 def update_item_unit(item_id: int, new_unit: str):
     new_unit = (new_unit or "").strip()
     if not new_unit:
-        raise ValueError("単位は空にできません。")
+        raise ValueError("Unit cannot be empty.")
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("UPDATE items SET unit=? WHERE id=?", (new_unit, item_id))
@@ -481,20 +479,20 @@ def change_item_genre(item_id: int, new_genre_id: int):
     row = cur.fetchone()
     if not row:
         conn.close()
-        raise ValueError("品目が見つかりません。")
+        raise ValueError("Item not found.")
     old_genre = row[0]
     if old_genre == new_genre_id:
         conn.close()
         return
 
-    # For each purchase: transfer monthly totals old->new
+    # transfer monthly totals per purchase from old→new
     cur.execute("""
         SELECT date, total_amount FROM purchases WHERE item_id=?
     """, (item_id,))
     rows = cur.fetchall()
-    # decrement old
     for (date_iso, total) in rows:
         month = date_iso[:7]
+        # decrement old
         cur.execute("SELECT total_amount FROM monthly_genre_summary WHERE month=? AND genre_id=?", (month, old_genre))
         r = cur.fetchone()
         if r:
@@ -512,7 +510,7 @@ def change_item_genre(item_id: int, new_genre_id: int):
             INSERT OR IGNORE INTO monthly_genre_items(month, genre_id, item_id)
             VALUES (?, ?, ?)
         """, (month, new_genre_id, item_id))
-        # cleanup old membership if no other purchases remain for old genre in that month for this item
+        # cleanup old membership if no other purchases remain for old genre that month
         cur.execute("""
             SELECT COUNT(*) FROM purchases p
             JOIN items i ON p.item_id = i.id
@@ -524,7 +522,7 @@ def change_item_genre(item_id: int, new_genre_id: int):
                 DELETE FROM monthly_genre_items WHERE month=? AND genre_id=? AND item_id=?
             """, (month, old_genre, item_id))
 
-    # finally update item genre
+    # finally update item's genre
     cur.execute("UPDATE items SET genre_id=? WHERE id=?", (new_genre_id, item_id))
 
     conn.commit()
@@ -533,7 +531,7 @@ def change_item_genre(item_id: int, new_genre_id: int):
 def ensure_genre(name: str) -> int:
     name = (name or "").strip()
     if not name:
-        raise ValueError("ジャンル名は必須です。")
+        raise ValueError("Genre name is required.")
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("INSERT OR IGNORE INTO genres(name) VALUES (?)", (name,))
@@ -542,11 +540,11 @@ def ensure_genre(name: str) -> int:
     row = cur.fetchone()
     conn.close()
     if not row:
-        raise RuntimeError("ジャンルの作成または取得に失敗しました。")
+        raise RuntimeError("Failed to create or retrieve the genre.")
     return row[0]
 
 def get_item_timeseries(item_id: int):
-    """Return list of (date_iso, qty, unit_price) ordered by date."""
+    """Return a list of (date_iso, qty, unit_price) ordered by date."""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -561,7 +559,7 @@ def get_item_timeseries(item_id: int):
 
 def get_item_timeseries_by_store(item_id: int):
     """
-    戻り値: [(date_iso, store_name, qty_sum, unit_price_avg), ...] を日付昇順で。
+    Return: [(date_iso, store_name, qty_sum, unit_price_avg), ...] in ascending date order.
     """
     conn = get_conn(); cur = conn.cursor()
     cur.execute("""
@@ -597,7 +595,7 @@ def get_month_total(month: str) -> float:
     return float(row[0] or 0.0)
 
 def get_monthly_genre_totals(month: str):
-    """Return list of (genre_id, genre_name, total_amount) for the month (only >0)."""
+    """Return list of (genre_id, genre_name, total_amount) for the month (only > 0)."""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -613,7 +611,7 @@ def get_monthly_genre_totals(month: str):
     return rows
 
 def get_month_genre_item_totals(month: str, genre_id: int):
-    """Return list of (item_name, total_amount) for given month & genre, desc by amount."""
+    """Return list of (item_name, total_amount) for the given month & genre, desc by amount."""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -630,7 +628,7 @@ def get_month_genre_item_totals(month: str, genre_id: int):
     return rows
 
 def get_monthly_payment_totals(month: str):
-    """Return list of (payment_id, payment_name, total_amount) for the month (>0)."""
+    """Return list of (payment_id, payment_name, total_amount) for the month (> 0)."""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
@@ -651,53 +649,53 @@ def get_monthly_payment_totals(month: str):
 
 def delete_item_and_update_summaries(item_id: int):
     """
-    品目に紐づく全購入記録を削除し、
-    monthly_genre_summary と monthly_payment_summary、monthly_genre_items を整合させた上で items から品目を削除する。
+    Delete all purchase records tied to an item, keep monthly_genre_summary /
+    monthly_payment_summary / monthly_genre_items consistent, and finally delete the item.
     """
     conn = get_conn()
     cur = conn.cursor()
 
-    # まず品目のジャンルIDを取得
+    # get item's genre id
     cur.execute("SELECT genre_id FROM items WHERE id=?", (item_id,))
     row = cur.fetchone()
     if not row:
         conn.close()
-        raise ValueError("品目が見つかりません。")
+        raise ValueError("Item not found.")
     genre_id = row[0]
 
-    # 当該品目の全購入記録を取得
+    # fetch all purchases for the item
     cur.execute("""
         SELECT id, date, total_amount, payment_id FROM purchases WHERE item_id=?
     """, (item_id,))
     purchases = cur.fetchall()
 
-    # 1件ずつ、集計を減算し purchase を削除
+    # adjust summaries and delete purchases one by one
     for pid, date_iso, total, payment_id in purchases:
         month = date_iso[:7]
-        # ジャンル別集計の減算
+        # genre summary decrement
         cur.execute("SELECT total_amount FROM monthly_genre_summary WHERE month=? AND genre_id=?", (month, genre_id))
         r = cur.fetchone()
         if r:
             current = r[0]
             new_total = max(0.0, current - float(total))
             cur.execute("UPDATE monthly_genre_summary SET total_amount=? WHERE month=? AND genre_id=?", (new_total, month, genre_id))
-        # 支払い手段別集計の減算
+        # payment summary decrement
         cur.execute("SELECT total_amount FROM monthly_payment_summary WHERE month=? AND payment_id=?", (month, payment_id))
         r = cur.fetchone()
         if r:
             current = r[0]
             new_total = max(0.0, current - float(total))
             cur.execute("UPDATE monthly_payment_summary SET total_amount=? WHERE month=? AND payment_id=?", (new_total, month, payment_id))
-        # 購入レコード削除
+        # delete the purchase row
         cur.execute("DELETE FROM purchases WHERE id=?", (pid,))
 
-        # monthly_genre_items の整合（当該月にこの品目の購入がもう無いなら削除）
+        # clean membership if no purchases remain for that month
         cur.execute("SELECT COUNT(*) FROM purchases WHERE item_id=? AND substr(date,1,7)=?", (item_id, month))
         cnt = cur.fetchone()[0]
         if cnt == 0:
             cur.execute("DELETE FROM monthly_genre_items WHERE month=? AND genre_id=? AND item_id=?", (month, genre_id, item_id))
 
-    # 最後に items から品目を削除
+    # finally delete the item
     cur.execute("DELETE FROM items WHERE id=?", (item_id,))
 
     conn.commit()
@@ -705,38 +703,36 @@ def delete_item_and_update_summaries(item_id: int):
     
 def delete_genre_and_update_summaries(genre_id: int):
     """
-    指定ジャンル配下の品目・購入記録を整合をとりながら削除し、最後にジャンルを削除する。
-    影響箇所：
-      - purchases（削除）
-      - monthly_genre_summary（月×ジャンル合計の減算／該当行削除）
-      - monthly_payment_summary（月×支払い手段の減算）
-      - monthly_genre_items（該当月の品目会員情報の削除）
-      - items（削除）→ genres（削除）
+    Delete items and purchase records under a given genre consistently, then delete the genre.
+    Affected tables:
+      - purchases (delete)
+      - monthly_genre_summary (decrement / delete rows when zero)
+      - monthly_payment_summary (decrement)
+      - monthly_genre_items (delete memberships)
+      - items (delete) → genres (delete)
     """
     conn = get_conn()
     cur = conn.cursor()
 
-    # 対象ジャンルの存在確認
+    # ensure the genre exists
     cur.execute("SELECT id FROM genres WHERE id=?", (genre_id,))
     if not cur.fetchone():
         conn.close()
-        raise ValueError("ジャンルが見つかりません。")
+        raise ValueError("Genre not found.")
 
-    # このジャンルの品目一覧
+    # items under this genre
     cur.execute("SELECT id FROM items WHERE genre_id=?", (genre_id,))
     item_ids = [r[0] for r in cur.fetchall()]
 
-    # 品目が無ければ：monthly_genre_summaryの行を削除してジャンルを削除
+    # no items: remove any leftover genre rows in summary, then delete the genre
     if not item_ids:
-        # monthly_genre_summary のジャンル行を削除（あれば）
         cur.execute("DELETE FROM monthly_genre_summary WHERE genre_id=?", (genre_id,))
-        # 最後にジャンル削除
         cur.execute("DELETE FROM genres WHERE id=?", (genre_id,))
         conn.commit()
         conn.close()
         return
 
-    # 各品目の購入記録を走査して集計を減算しつつ削除
+    # iterate purchases per item, decrement summaries, delete purchases
     for item_id in item_ids:
         cur.execute("""
             SELECT id, date, total_amount, payment_id
@@ -747,7 +743,7 @@ def delete_genre_and_update_summaries(genre_id: int):
         for pid, date_iso, total, payment_id in rows:
             month = date_iso[:7]
 
-            # 月×ジャンル 合計の減算（0未満にならないように）
+            # month×genre decrement (no negative)
             cur.execute("""
                 SELECT total_amount
                 FROM monthly_genre_summary
@@ -768,7 +764,7 @@ def delete_genre_and_update_summaries(genre_id: int):
                         WHERE month=? AND genre_id=?
                     """, (new_total, month, genre_id))
 
-            # 月×支払い手段 合計の減算
+            # month×payment decrement
             cur.execute("""
                 SELECT total_amount
                 FROM monthly_payment_summary
@@ -783,10 +779,10 @@ def delete_genre_and_update_summaries(genre_id: int):
                     WHERE month=? AND payment_id=?
                 """, (new_total, month, payment_id))
 
-            # 購入記録を削除
+            # delete purchase
             cur.execute("DELETE FROM purchases WHERE id=?", (pid,))
 
-            # monthly_genre_items の会員情報を整理
+            # clean membership
             cur.execute("""
                 SELECT COUNT(*)
                 FROM purchases
@@ -799,50 +795,50 @@ def delete_genre_and_update_summaries(genre_id: int):
                     WHERE month=? AND genre_id=? AND item_id=?
                 """, (month, genre_id, item_id))
 
-        # 品目を削除
+        # delete item
         cur.execute("DELETE FROM items WHERE id=?", (item_id,))
 
-    # 念のため、このジャンルの monthly_genre_summary の残骸を掃除
+    # cleanup any remaining summary rows for the genre
     cur.execute("DELETE FROM monthly_genre_summary WHERE genre_id=?", (genre_id,))
 
-    # 最後にジャンルそのものを削除
+    # delete the genre itself
     cur.execute("DELETE FROM genres WHERE id=?", (genre_id,))
 
     conn.commit()
     conn.close()
 
-# 追加：名称変更
+# rename helpers
 def update_genre_name(genre_id: int, new_name: str):
     new_name = (new_name or "").strip()
     if not new_name:
-        raise ValueError("ジャンル名は空にできません。")
+        raise ValueError("Genre name cannot be empty.")
     conn = get_conn(); cur = conn.cursor()
     cur.execute("UPDATE genres SET name=? WHERE id=?", (new_name, genre_id))
     if cur.rowcount == 0:
-        conn.close(); raise ValueError("ジャンルが見つかりません。")
+        conn.close(); raise ValueError("Genre not found.")
     conn.commit(); conn.close()
 
 def update_store_name(store_id: int, new_name: str):
     new_name = (new_name or "").strip()
     if not new_name:
-        raise ValueError("店名は空にできません。")
+        raise ValueError("Store name cannot be empty.")
     conn = get_conn(); cur = conn.cursor()
     cur.execute("UPDATE stores SET name=? WHERE id=?", (new_name, store_id))
     if cur.rowcount == 0:
-        conn.close(); raise ValueError("店が見つかりません。")
+        conn.close(); raise ValueError("Store not found.")
     conn.commit(); conn.close()
 
 def update_payment_name(payment_id: int, new_name: str):
     new_name = (new_name or "").strip()
     if not new_name:
-        raise ValueError("支払い手段名は空にできません。")
+        raise ValueError("Payment method name cannot be empty.")
     conn = get_conn(); cur = conn.cursor()
     cur.execute("UPDATE payments SET name=? WHERE id=?", (new_name, payment_id))
     if cur.rowcount == 0:
-        conn.close(); raise ValueError("支払い手段が見つかりません。")
+        conn.close(); raise ValueError("Payment method not found.")
     conn.commit(); conn.close()
 
-# 追加：参照件数
+# reference counts
 def count_purchases_by_store(store_id: int) -> int:
     conn = get_conn(); cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM purchases WHERE store_id=?", (store_id,))
@@ -853,7 +849,7 @@ def count_purchases_by_payment(payment_id: int) -> int:
     cur.execute("SELECT COUNT(*) FROM purchases WHERE payment_id=?", (payment_id,))
     n = cur.fetchone()[0]; conn.close(); return int(n)
 
-# 追加：店の再割当（集計影響なし）
+# reassign store in purchases (no summary impact)
 def reassign_store_in_purchases(old_store_id: int, new_store_id: int):
     if old_store_id == new_store_id:
         return
@@ -861,7 +857,7 @@ def reassign_store_in_purchases(old_store_id: int, new_store_id: int):
     cur.execute("UPDATE purchases SET store_id=? WHERE store_id=?", (new_store_id, old_store_id))
     conn.commit(); conn.close()
 
-# 追加：支払い手段の再割当（支払月次集計を月別に移し替え）
+# reassign payment method in purchases (move monthly payment summaries accordingly)
 def reassign_payment_in_purchases(old_payment_id: int, new_payment_id: int):
     if old_payment_id == new_payment_id:
         return
@@ -869,16 +865,16 @@ def reassign_payment_in_purchases(old_payment_id: int, new_payment_id: int):
     try:
         cur.execute("BEGIN")
 
-        # 月別に移動額を計算
+        # sums per month for the old payment
         cur.execute("""
             SELECT substr(date,1,7) AS month, SUM(total_amount) AS s
             FROM purchases
             WHERE payment_id=?
             GROUP BY substr(date,1,7)
         """, (old_payment_id,))
-        rows = cur.fetchall()  # [(month, sum), ...]
+        rows = cur.fetchall()
 
-        # 旧 payment 側の月次を減算（0なら削除）
+        # decrement old payment monthly totals (delete row if 0)
         for month, s in rows:
             s = float(s or 0.0)
             cur.execute("SELECT total_amount FROM monthly_payment_summary WHERE month=? AND payment_id=?", (month, old_payment_id))
@@ -890,7 +886,7 @@ def reassign_payment_in_purchases(old_payment_id: int, new_payment_id: int):
                 else:
                     cur.execute("UPDATE monthly_payment_summary SET total_amount=? WHERE month=? AND payment_id=?", (new_total, month, old_payment_id))
 
-        # 新 payment 側の月次へ加算（upsert）
+        # increment new payment monthly totals (upsert)
         for month, s in rows:
             s = float(s or 0.0)
             cur.execute("""
@@ -900,28 +896,27 @@ def reassign_payment_in_purchases(old_payment_id: int, new_payment_id: int):
                 DO UPDATE SET total_amount = total_amount + excluded.total_amount
             """, (month, new_payment_id, s))
 
-        # 購入レコードを再割当
+        # reassign purchases
         cur.execute("UPDATE purchases SET payment_id=? WHERE payment_id=?", (new_payment_id, old_payment_id))
 
         conn.commit()
     except Exception:
         conn.rollback()
-        raise
     finally:
         conn.close()
 
-# 追加：安全な削除（参照がない場合のみ）
+# safe deletes (only when not referenced)
 def delete_store(store_id: int):
     if count_purchases_by_store(store_id) > 0:
-        raise ValueError("この店は購入に参照されています。先に再割当してください。")
+        raise ValueError("This store is referenced by purchases. Reassign first.")
     conn = get_conn(); cur = conn.cursor()
     cur.execute("DELETE FROM stores WHERE id=?", (store_id,))
     conn.commit(); conn.close()
 
 def delete_payment(payment_id: int):
     if count_purchases_by_payment(payment_id) > 0:
-        raise ValueError("この支払い手段は購入に参照されています。先に再割当してください。")
-    # 月次支払サマリに残骸があれば掃除
+        raise ValueError("This payment method is referenced by purchases. Reassign first.")
+    # clean up any leftover monthly payment summary rows
     conn = get_conn(); cur = conn.cursor()
     cur.execute("DELETE FROM monthly_payment_summary WHERE payment_id=?", (payment_id,))
     cur.execute("DELETE FROM payments WHERE id=?", (payment_id,))
@@ -931,36 +926,38 @@ def update_item(item_id: int, new_name: str, new_unit: str):
     new_name = (new_name or "").strip()
     new_unit = (new_unit or "").strip()
     if not new_name:
-        raise ValueError("品目名は空にできません。")
+        raise ValueError("Item name cannot be empty.")
     if not new_unit:
-        raise ValueError("単位は空にできません。")
+        raise ValueError("Unit cannot be empty.")
     conn = get_conn()
     cur = conn.cursor()
     try:
         cur.execute("BEGIN")
-        # 存在確認
+        # existence check
         cur.execute("SELECT genre_id FROM items WHERE id=?", (item_id,))
         row = cur.fetchone()
         if not row:
-            raise ValueError("品目が見つかりません。")
-        # 更新（同一ジャンル・同名の一意制約に当たると IntegrityError）
+            raise ValueError("Item not found.")
+        # update (may hit UNIQUE(genre_id, name))
         cur.execute("UPDATE items SET name=?, unit=? WHERE id=?", (new_name, new_unit, item_id))
         if cur.rowcount == 0:
-            raise ValueError("更新対象が見つかりません。")
+            raise ValueError("No record found to update.")
         conn.commit()
     except sqlite3.IntegrityError:
         conn.rollback()
-        raise ValueError("同一ジャンルに同名の品目が既に存在します。")
+        raise ValueError("An item with the same name already exists in this genre.")
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
 
-def get_purchases_filtered(genre_id: int,item_id: int | None,store_id: int | None,start_date_iso: str | None,end_date_iso: str | None):
+def get_purchases_filtered(genre_id: int, item_id: int | None, store_id: int | None,
+                           start_date_iso: str | None, end_date_iso: str | None):
     """
-    返値は既存と同じ並び：
-    (p.id, i.id, i.name, i.unit, p.date, s.id, s.name, p.qty, p.total_amount, p.unit_price, pay.id, pay.name)
+    Return rows in the same order as existing APIs:
+    (p.id, i.id, i.name, i.unit, p.date, s.id, s.name,
+     p.qty, p.total_amount, p.unit_price, pay.id, pay.name)
     """
     conn = get_conn()
     cur = conn.cursor()
@@ -1000,7 +997,7 @@ def get_purchases_filtered(genre_id: int,item_id: int | None,store_id: int | Non
     conn.close()
     return rows
 
-# ====== BS: balance snapshots（口座・現金の実測記録） =======================
+# ====== BS: balance snapshots (observed balances for accounts & cash) =======================
 
 def _init_bs_tables():
     conn = get_conn(); cur = conn.cursor()
@@ -1019,8 +1016,7 @@ def _init_bs_tables():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_bs_date ON bs_snapshots(date);")
     conn.commit(); conn.close()
 
-# init_db()呼び出し後に実行されるよう、既存のinit_dbの末尾で呼ぶのが安全。
-# 既存init_dbの最後に _init_bs_tables() を1行追加してください。
+# Ensure _init_bs_tables() is called after init_db(); this is already done at the end of init_db().
 
 def bs_insert_record(d, account_balance, cash_balance, note=None):
     if hasattr(d, "isoformat"): d = d.isoformat()
@@ -1082,7 +1078,7 @@ def bs_list_records(start=None, end=None):
              "note": (r[4] if r[4] is not None else "")} for r in rows]
 
 def bs_get_latest_record():
-    """dict or None: 最も新しい日付の記録"""
+    """dict or None: the most recent record by date."""
     conn = get_conn(); cur = conn.cursor()
     cur.execute("""
       SELECT id,date,account_balance,cash_balance
@@ -1095,25 +1091,26 @@ def bs_get_latest_record():
     if not r: return None
     return {"id":r[0], "date":r[1], "account_balance":float(r[2]), "cash_balance":float(r[3])}
 
-# ====== 理論値差分の算出（基準日以降の家計簿購入から簡易推定） ==============
+# ====== Compute theoretical deltas from purchases since a baseline date ==============
 
 def _is_cash_payment_name(name: str) -> bool:
-    # 必要に応じて語彙を拡張。正規化（全角半角/大小）等も適宜追加可。
+    # Extend vocabulary as needed. Consider normalization (width/case) if necessary.
+    # Keep Japanese "現金" for backward compatibility with existing data.
     if not name: return False
     nm = str(name).strip().lower()
     return nm in ("現金", "cash")
 
 def get_balance_deltas_since(date_from):
     """
-    返値: {"delta_account": float, "delta_cash": float}
-    規則:
-      ・支払い手段名が '現金' または 'Cash' → 現金を total_amount 分 減算（負の寄与）
-      ・それ以外 → 口座を total_amount 分 減算
+    Return: {"delta_account": float, "delta_cash": float}
+    Rules:
+      · If payment name is 'cash' (or '現金'): decrease cash by total_amount (negative contribution).
+      · Otherwise: decrease account balance by total_amount.
     """
     if hasattr(date_from, "isoformat"):
         date_from = date_from.isoformat()
     conn = get_conn(); cur = conn.cursor()
-    # date_fromより後（基準日を含めない）の支出を集計
+    # sum expenses strictly after the baseline date
     cur.execute("""
       SELECT pay.name, SUM(p.total_amount)
       FROM purchases p
