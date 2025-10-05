@@ -1,0 +1,7 @@
+streamlit
+msal
+requests
+pandas
+python-dateutil
+pytz
+altair
