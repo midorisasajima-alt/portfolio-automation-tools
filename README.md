@@ -103,3 +103,27 @@ $Env:STREAMLIT_SERVER_PORT=8501
 ## License
 
 * MIT
+
+
+## Screenshots
+
+*Note: Screenshots were taken before the UI was translated to English. The current published version runs in English and All code are provided in English.*
+
+### Exercise Management
+![Exercise Management](docs/screenshots/Exercise_Management.png)
+
+### Housework & Shopping & Household Management
+![Housework & Shopping & Household Management](docs/screenshots/Housework&Shopping&Household_Managemen.png)
+
+### Network Management
+![Network Management](docs/screenshots/Network_Management.png)
+
+### Nutrition Management
+![Nutrition Management](docs/screenshots/Nutrition_Management.png)
+
+### Schedule Management
+![Schedule Management](docs/screenshots/Schedule_Management.png)
+
+### Task Management
+![Task Management](docs/screenshots/Task_Management.png)
+
