@@ -113,7 +113,7 @@ $Env:STREAMLIT_SERVER_PORT=8501
 ![Exercise Management](docs/screenshots/Exercise_Management.png)
 
 ### Housework & Shopping & Household Management
-![Housework & Shopping & Household Management](docs/screenshots/Housework&Shopping&Household_Managemen.png)
+![Housework & Shopping & Household Management](docs/screenshots/Housework&Shopping&Household_Management.png)
 
 ### Network Management
 ![Network Management](docs/screenshots/Network_Management.png)
