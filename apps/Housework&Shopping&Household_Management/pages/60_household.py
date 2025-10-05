@@ -5,15 +5,15 @@ from db import (
     get_month_genre_item_totals, get_monthly_payment_totals
 )
 
-st.set_page_config(page_title="家計簿", layout="wide")
+st.set_page_config(page_title="Household Ledger", layout="wide")
 
 months = get_available_months()
 if not months:
-    st.info("データがありません。先に『買い物_記録』で記録してください。")
+    st.info("No data available. Please record first in 'Shopping_Record'.")
     st.stop()
 
 def darken_axes(ax):
-    # 背景だけ黒、軸・目盛・ラベルは白に
+    # Black background, white axes, ticks, and labels
     ax.set_facecolor('black')
     ax.figure.set_facecolor('black')
     for s in ax.spines.values():
@@ -33,24 +33,24 @@ for tab, month in zip(tabs, months_desc):
         
         genre_rows = get_monthly_genre_totals(month)
         if not genre_rows:
-            st.info("この月の支出内訳はありません。")
+            st.info("No expenditure breakdown for this month.")
             continue
 
-        # ── 上段：円グラフを横並び ─────────────────────────────
-        # ── 共通パラメータ（ファイル先頭付近・円グラフ前などに定義可）
-        PIE_FIGSIZE = (5, 5)   # 同一サイズに固定（必要なら6,6等に調整）
-        PIE_RADIUS  = 1.0      # 半径を固定
-        # 左：ジャンル別内訳 円グラフ
-        # ── 上段：3カラム ─────────────────────────────────────────
+        # ── Top row: Side-by-side pie charts ─────────────────────────────
+        # ── Common parameters ────────────────────────────────────────────
+        PIE_FIGSIZE = (5, 5)
+        PIE_RADIUS  = 1.0
+
+        # ── Top row: 3 columns ───────────────────────────────────────────
         col_left, col_mid, col_right = st.columns([10,10,6])
 
-        # 左：ジャンル別の内訳（円グラフ）
+        # Left: Breakdown by genre (pie chart)
         with col_left:
-            st.text("ジャンル別の内訳")
+            st.text("Breakdown by Genre")
             labels = [gname for (_, gname, total) in genre_rows]
             sizes = [float(total) for (_, gname, total) in genre_rows]
             if sum(sizes) <= 0:
-                st.info("円グラフに表示できる金額がありません。")
+                st.info("No valid amounts to display in pie chart.")
             else:
                 fig, ax = plt.subplots(figsize=PIE_FIGSIZE)
                 wedges, texts, autotexts = ax.pie(
@@ -61,9 +61,9 @@ for tab, month in zip(tabs, months_desc):
                     counterclock=False,
                     radius=PIE_RADIUS
                 )
-                darken_axes(ax)  # ← 追加
+                darken_axes(ax)
 
-                # パーセンテージ表示を白に
+                # Make percentage labels white
                 for t in (texts or []):
                     t.set_color("white")
                 for t in (autotexts or []):
@@ -79,17 +79,15 @@ for tab, month in zip(tabs, months_desc):
                 st.pyplot(fig, use_container_width=False)
 
 
-        # 中央：支払い手段の割合（円グラフ）
+        # Middle: Tabs by genre with bar charts
         with col_mid:
-                # ── 中段：ジャンル別タブ ──────────────────────────────────
             g_tabs = st.tabs([gname for (_, gname, _) in genre_rows])
 
-            # ── 下段：各タブ内の棒グラフ（高額順） ─────────────────────
             for g_tab, (gid, gname, gtotal) in zip(g_tabs, genre_rows):
                 with g_tab:
                     items = get_month_genre_item_totals(month, gid)
                     if not items:
-                        st.write("記録なし")
+                        st.write("No records")
                         continue
 
                     items_sorted = sorted(items, key=lambda x: float(x[1]), reverse=True)
@@ -100,7 +98,7 @@ for tab, month in zip(tabs, months_desc):
                     y_pos = list(range(len(names)))
                     bars = ax2.barh(y_pos, totals)
 
-                    darken_axes(ax2)  # ← 追加
+                    darken_axes(ax2)
 
                     ax2.set_yticks(y_pos, labels=names)
                     ax2.set_xlabel("Amount")
@@ -110,25 +108,25 @@ for tab, month in zip(tabs, months_desc):
                     for bar, val in zip(bars, totals):
                         x = bar.get_width()
                         y = bar.get_y() + bar.get_height() / 2
-                        ax2.text(x / 2, y, f"{val:,.2f}", va="center", ha="center", color="white")  # ← 文字を白
+                        ax2.text(x / 2, y, f"{val:,.2f}", va="center", ha="center", color="white")
 
                     fig2.subplots_adjust(left=0.35)
                     fig2.tight_layout()
                     st.pyplot(fig2)
 
 
-        # 右：ジャンル別 合計（テキスト）
+        # Right: Total by genre (text)
         with col_right:
             genre_sum_total = sum(float(t) for (_, _, t) in genre_rows)
-            st.write(f"合計：{genre_sum_total:,.2f}")
+            st.write(f"Total: {genre_sum_total:,.2f}")
             for _, gname, total in sorted(genre_rows, key=lambda x: float(x[2]), reverse=True):
                 st.write(f"- {gname}: {float(total):,.2f}")
 
         
-
         st.markdown("---")
-        st.text("支払方法の内訳")
-        c1,_, c2 = st.columns([10,2,10])
+        st.text("Breakdown by Payment Method")
+        c1, _, c2 = st.columns([10,2,10])
+
         with c1:
             pay_rows = get_monthly_payment_totals(month)
             if pay_rows:
@@ -144,7 +142,7 @@ for tab, month in zip(tabs, months_desc):
                         counterclock=False,
                         radius=PIE_RADIUS
                     )
-                    darken_axes(axp)  # ← 追加
+                    darken_axes(axp)
 
                     for t in (texts_p or []):
                         t.set_color("white")
@@ -162,19 +160,17 @@ for tab, month in zip(tabs, months_desc):
                     st.pyplot(figp, use_container_width=False)
 
                 else:
-                    st.caption("支払い手段別の金額がありません。")
+                    st.caption("No payment method amounts available.")
             else:
-                st.caption("支払い手段別のデータはありません。")
+                st.caption("No data by payment method available.")
                 
         with c2:
             pay_rows = get_monthly_payment_totals(month)
             if pay_rows:
-                # 合計金額（参考）
                 pay_total = sum(float(t) for (_, _, t) in pay_rows)
-                st.write(f"合計：{pay_total:,.2f}")
+                st.write(f"Total: {pay_total:,.2f}")
 
-                # 各支払方法の合計金額を列挙
                 for _, name, total in pay_rows:
                     st.write(f"- {name}: {float(total):,.2f}")
             else:
-                st.caption("支払い手段別のデータはありません。")
+                st.caption("No data by payment method available.")
