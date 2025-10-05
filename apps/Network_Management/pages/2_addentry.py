@@ -4,25 +4,25 @@ from db import init_db, SessionLocal
 from utils import upsert_person
 
 init_db()
-st.title("追加")
+st.title("Add Entry")
 
 with st.form("add_form", clear_on_submit=True):
-    name = st.text_input("名前*", max_chars=200)
+    name = st.text_input("Name*", max_chars=200)
     instagram = st.text_input("Instagram")
     whatsapp = st.text_input("WhatsApp")
     linkedin = st.text_input("LinkedIn")
-    country = st.text_input("出身国")
-    region = st.text_input("出身地域")
-    work_history = st.text_area("職歴（自由記述）", height=120)
-    birthday = st.date_input("誕生日", value=None, format="YYYY-MM-DD")
-    residence = st.text_input("住んでいるところ")
-    photo_album = st.text_input("写真集の情報")
-    notes = st.text_area("メモ", height=120)
-    submitted = st.form_submit_button("追加")
+    country = st.text_input("Country of origin")
+    region = st.text_input("Region of origin")
+    work_history = st.text_area("Work history (free description)", height=120)
+    birthday = st.date_input("Birthday", value=None, format="YYYY-MM-DD")
+    residence = st.text_input("Current residence")
+    photo_album = st.text_input("Photo album information")
+    notes = st.text_area("Notes", height=120)
+    submitted = st.form_submit_button("Add")
 
     if submitted:
         if not name.strip():
-            st.error("名前は必須です。")
+            st.error("Name is required.")
         else:
             with SessionLocal() as sess:
                 p = upsert_person(
@@ -39,4 +39,4 @@ with st.form("add_form", clear_on_submit=True):
                     photo_album=photo_album.strip() or None,
                     notes=notes.strip() or None,
                 )
-                st.success(f"追加しました（ID: {p.id}）")
+                st.success(f"Added successfully (ID: {p.id})")
