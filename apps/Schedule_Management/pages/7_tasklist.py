@@ -1,3 +1,6 @@
+# =============================
+# pages/7_TaskList.py
+# -----------------------------
 import streamlit as st
 from pathlib import Path
 from db import list_tasks, update_task, delete_task, list_task_proofs
@@ -109,4 +112,36 @@ with tab_done:
                             with open(path, "rb") as f:
                                 st.download_button(
                                     "📄 Download PDF",
-                                    f
+                                    f,
+                                    file_name=path.name,
+                                    mime="application/pdf",
+                                    key=f"pdf_{t['id']}_{i}",
+                                )
+                            st.caption(f"{path.name} ({ts})")
+                        elif path:
+                            st.write(f"📎 {path.name} ({ts})")
+                        else:
+                            st.write("(File not found)")
+            else:
+                st.caption("No completion proofs available.")
+
+            # Delete button with confirmation (for completed tasks)
+            key_base = f"done_{t['id']}"
+            confirm_key = f"confirm_del_{key_base}"
+
+            if not st.session_state.get(confirm_key, False):
+                if st.button("🗑️ Delete", key=f"del_{key_base}"):
+                    st.session_state[confirm_key] = True
+            else:
+                st.warning("Are you sure you want to delete this task? This action cannot be undone.")
+                col_ok, col_cancel = st.columns(2)
+                with col_ok:
+                    if st.button("Yes, delete", key=f"del_ok_{key_base}"):
+                        delete_task(int(t['id']))
+                        st.session_state.pop(confirm_key, None)
+                        st.success("Task deleted successfully.")
+                        _rerun()
+                with col_cancel:
+                    if st.button("Cancel", key=f"del_ng_{key_base}"):
+                        st.session_state.pop(confirm_key, None)
+                        _rerun()
