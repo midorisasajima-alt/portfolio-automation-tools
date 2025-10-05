@@ -1,0 +1,7 @@
+[theme]
+base="dark"                         # ダークモード基準
+primaryColor="#88d18a"              # 強調色（今の赤を青に変更）
+backgroundColor="#0e1117"           # 背景色
+secondaryBackgroundColor="#262730"  # サイドバー背景
+textColor="#ffffff"                 # 文字色
+font="sans serif"
