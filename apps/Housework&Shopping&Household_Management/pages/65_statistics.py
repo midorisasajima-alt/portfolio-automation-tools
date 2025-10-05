@@ -4,35 +4,34 @@ import matplotlib.pyplot as plt
 from typing import List, Dict
 from db import get_available_months, list_genres, get_conn
 
-st.set_page_config(page_title="統計（ジャンル推移）", layout="wide")
+st.set_page_config(page_title="Statistics (Genre Trends)", layout="wide")
 
 months = get_available_months()
 if not months:
-    st.info("データがありません。先に『買い物_記録』で記録してください。")
+    st.info("No data available. Please record first in 'Shopping_Record'.")
     st.stop()
-months = sorted(months)  # 昇順
+months = sorted(months)  # ascending order
 
 genres = list_genres()   # [(id, name), ...]
 if not genres:
-    st.info("ジャンルが未登録です。『編集』で追加してください。")
+    st.info("No genres registered. Please add them in 'Edit'.")
     st.stop()
 
-
-# ボタン群
+# ── Button group ───────────────────────────────────────────────
 c1, c2, c3 = st.columns([1,1,4])
 with c1:
-    if st.button("全選択"):
+    if st.button("Select All"):
         for gid, _ in genres:
             st.session_state[f"sel_genre_{gid}"] = True
 with c2:
-    if st.button("全解除"):
+    if st.button("Deselect All"):
         for gid, _ in genres:
             st.session_state[f"sel_genre_{gid}"] = False
 
-st.markdown("#### ジャンル選択")
-# チェックボックス群
+st.markdown("#### Select Genres")
+# ── Checkbox group ─────────────────────────────────────────────
 selected_ids = []
-cols = st.columns(4)  # 適宜分割列数
+cols = st.columns(4)  # Adjust the number of columns as needed
 for i, (gid, gname) in enumerate(genres):
     key = f"sel_genre_{gid}"
     with cols[i % len(cols)]:
@@ -40,16 +39,18 @@ for i, (gid, gname) in enumerate(genres):
         if checked:
             selected_ids.append(gid)
 
-# 現在の選択を「前選択」として保存
+# Save the current selection as "previous selection"
 st.session_state.prev_selection = set(selected_ids)
 
 if not selected_ids:
-    st.info("表示するジャンルを選択してください。")
+    st.info("Please select at least one genre to display.")
     st.stop()
 
-# ---- データ取得：ジャンル×月の時系列（monthly_genre_summary を横断） ----
+# ---- Data retrieval: time series of (genre × month) ----
 def fetch_series_for_genre(genre_id: int, month_list: List[str]) -> List[float]:
-    """monthly_genre_summary から genre_id の各月合計を取り出し、存在しない月は0埋め。"""
+    """Retrieve total amount per month for the specified genre_id from monthly_genre_summary.
+    Fill missing months with zeros.
+    """
     conn = get_conn(); cur = conn.cursor()
     cur.execute("""
         SELECT month, total_amount
@@ -61,12 +62,12 @@ def fetch_series_for_genre(genre_id: int, month_list: List[str]) -> List[float]:
     d: Dict[str, float] = {m: float(v or 0.0) for (m, v) in rows}
     return [d.get(m, 0.0) for m in month_list]
 
-# ---- プロット ----
+# ---- Plotting ----
 fig, ax = plt.subplots()
 x = list(range(len(months)))
 
 for gid in selected_ids:
-    # 表示名
+    # Display name
     gname = next(n for (g, n) in genres if g == gid)
     y = fetch_series_for_genre(gid, months)
     ax.plot(x, y, label=gname)
@@ -78,4 +79,3 @@ ax.set_ylabel("Total Amount")
 ax.legend()
 fig.tight_layout()
 st.pyplot(fig)
-
