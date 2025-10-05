@@ -39,7 +39,7 @@ def init_db():
     conn.commit(); conn.close()
 
 def seed_example():
-    """任意：初期データ（必要なければ呼ばない）"""
+    """Optional: initial seed data (call only if needed)."""
     conn = get_conn(); cur = conn.cursor()
     for g in ["Food", "Non-Food"]:
         cur.execute("INSERT OR IGNORE INTO sl_genres(name) VALUES(?)", (g,))
@@ -61,7 +61,7 @@ def list_genres() -> List[Tuple[int,str]]:
 
 def ensure_genre(name:str)->int:
     name=(name or "").strip()
-    if not name: raise ValueError("ジャンル名は必須です。")
+    if not name: raise ValueError("Genre name is required.")
     conn=get_conn(); cur=conn.cursor()
     cur.execute("INSERT OR IGNORE INTO sl_genres(name) VALUES(?)",(name,))
     conn.commit()
@@ -70,16 +70,20 @@ def ensure_genre(name:str)->int:
 
 def update_genre_name(genre_id:int,new_name:str):
     new_name=(new_name or "").strip()
-    if not new_name: raise ValueError("ジャンル名は空にできません。")
+    if not new_name: raise ValueError("Genre name cannot be empty.")
     conn=get_conn(); cur=conn.cursor()
     cur.execute("UPDATE sl_genres SET name=? WHERE id=?", (new_name,genre_id))
-    if cur.rowcount==0: conn.close(); raise ValueError("ジャンルが見つかりません。")
+    if cur.rowcount==0: 
+        conn.close(); 
+        raise ValueError("Genre not found.")
     conn.commit(); conn.close()
 
 def delete_genre(genre_id:int):
     conn=get_conn(); cur=conn.cursor()
     cur.execute("DELETE FROM sl_genres WHERE id=?", (genre_id,))
-    if cur.rowcount==0: conn.close(); raise ValueError("ジャンルが見つかりません。")
+    if cur.rowcount==0: 
+        conn.close(); 
+        raise ValueError("Genre not found.")
     conn.commit(); conn.close()
 
 # ── Items ──────────────────────────────────────────────────────────
@@ -109,27 +113,31 @@ def search_items(q:str, genre_id:Optional[int]=None)->List[Tuple[int,int,str]]:
 
 def ensure_item(genre_id:int, name:str)->int:
     name=(name or "").strip()
-    if not name: raise ValueError("品目名は必須です。")
+    if not name: raise ValueError("Item name is required.")
     conn=get_conn(); cur=conn.cursor()
     cur.execute("INSERT OR IGNORE INTO sl_items(genre_id,name) VALUES(?,?)",(genre_id,name))
     conn.commit()
     cur.execute("SELECT id FROM sl_items WHERE genre_id=? AND name=?", (genre_id,name))
     row=cur.fetchone(); conn.close()
-    if not row: raise RuntimeError("品目の作成/取得に失敗しました。")
+    if not row: raise RuntimeError("Failed to create or fetch the item.")
     return row[0]
 
 def update_item_name(item_id:int, new_name:str):
     new_name=(new_name or "").strip()
-    if not new_name: raise ValueError("品目名は空にできません。")
+    if not new_name: raise ValueError("Item name cannot be empty.")
     conn=get_conn(); cur=conn.cursor()
     cur.execute("UPDATE sl_items SET name=? WHERE id=?", (new_name,item_id))
-    if cur.rowcount==0: conn.close(); raise ValueError("品目が見つかりません。")
+    if cur.rowcount==0: 
+        conn.close(); 
+        raise ValueError("Item not found.")
     conn.commit(); conn.close()
 
 def delete_item(item_id:int):
     conn=get_conn(); cur=conn.cursor()
     cur.execute("DELETE FROM sl_items WHERE id=?", (item_id,))
-    if cur.rowcount==0: conn.close(); raise ValueError("品目が見つかりません。")
+    if cur.rowcount==0: 
+        conn.close(); 
+        raise ValueError("Item not found.")
     conn.commit(); conn.close()
 
 # ── List state (to_buy / memo) ─────────────────────────────────────
@@ -162,7 +170,7 @@ def set_memo(item_id:int, memo:str):
     conn.commit(); conn.close()
 
 def list_to_buy_by_genre(genre_id:int)->List[Tuple[int,str,str]]:
-    """戻り値: [(item_id, item_name, memo)] で to_buy=1 のみ"""
+    """Return: [(item_id, item_name, memo)] only for rows where to_buy=1."""
     conn=get_conn(); cur=conn.cursor()
     cur.execute("""
         SELECT i.id, i.name, COALESCE(s.memo,'')
