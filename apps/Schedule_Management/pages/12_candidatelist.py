@@ -1,4 +1,3 @@
-# pages/20_候補一覧.py
 import streamlit as st
 import pandas as pd
 from datetime import date, timedelta
@@ -7,10 +6,10 @@ from db import get_conn, delete_candidate, get_candidate
 from msal_auth import get_access_token
 from graph_client import create_event_from_candidate
 
-st.set_page_config(page_title="候補一覧", layout="wide")
-st.title("候補一覧")
+st.set_page_config(page_title="Candidate List", layout="wide")
+st.title("Candidate List")
 
-# --- CSS（先頭で一度だけ追加） ---
+# --- CSS (add once at the top) ---
 st.markdown(
     """
 <style>
@@ -25,34 +24,34 @@ a.btn-jump:hover { background:#eef5ff; }
     unsafe_allow_html=True,
 )
 
-# --- 内部ページ遷移リンク（?page=...&date=...） ---
+# --- Internal page jump link (?page=...&date=...) ---
 from urllib.parse import urlencode
 
-PAGE_NAME = "1_予定"  # 実際のファイル名（例: pages/1_予定.py）の表示名に合わせる
+PAGE_NAME = "1_Schedule"  # Match the displayed name of the actual file (e.g., pages/1_Schedule.py)
 def _mk_jump(datestr: str) -> str:
     qs = urlencode({"page": PAGE_NAME, "date": datestr})
-    href = f"?{qs}"  # 先頭にスラッシュを付けない（デプロイのサブパスでも安全）
-    return f'<a href="{href}" class="btn-jump" target="_self">予定へ</a>'
+    href = f"?{qs}"  # No leading slash (safe on deployed subpaths)
+    return f'<a href="{href}" class="btn-jump" target="_self">Go to Schedule</a>'
 
-# --- 1) フィルタUI ---
+# --- 1) Filter UI ---
 today = date.today()
 col = st.columns([2, 2, 2, 2, 2])
 with col[0]:
-    dfrom = st.date_input("開始日", today)
+    dfrom = st.date_input("Start Date", today)
 with col[1]:
-    dto = st.date_input("終了日", today + timedelta(days=14))
+    dto = st.date_input("End Date", today + timedelta(days=14))
 with col[2]:
-    q = st.text_input("キーワード", "")
+    q = st.text_input("Keyword", "")
 with col[3]:
-    sort_key = st.selectbox("並び替えキー", ["date", "start_time", "title"])
+    sort_key = st.selectbox("Sort Key", ["date", "start_time", "title"])
 with col[4]:
-    asc = st.toggle("昇順", value=True)
+    asc = st.toggle("Ascending", value=True)
 
 if dfrom > dto:
-    st.error("開始日が終了日を超えています。")
+    st.error("Start date exceeds end date.")
     st.stop()
 
-# --- 2) データ取得（db.pyを変更せず、ページ側から直接SELECT） ---
+# --- 2) Fetch data (select directly without changing db.py) ---
 params = [dfrom.isoformat(), dto.isoformat()]
 where = ["date BETWEEN ? AND ?"]
 if q.strip():
@@ -72,7 +71,7 @@ with get_conn() as conn:
     cur = conn.cursor()
     rows = [dict(r) for r in cur.execute(sql, params).fetchall()]
 
-# --- 3) DataFrame 整形（1回だけ描画） ---
+# --- 3) Shape DataFrame (render once) ---
 def _mk_link(u: str | None) -> str:
     if not u:
         return ""
@@ -81,7 +80,7 @@ def _mk_link(u: str | None) -> str:
 
 df = pd.DataFrame(rows)
 if df.empty:
-    st.info("該当する候補はありません。")
+    st.info("No matching candidates found.")
 else:
     df["time_span"] = df["start_time"].astype(str) + "–" + df["end_time"].astype(str)
     df["link"] = df["info_url"].apply(_mk_link)
@@ -89,30 +88,30 @@ else:
     df_view = df[["id", "date", "time_span", "title", "link"]].rename(
         columns={
             "id": "ID",
-            "date": "日付",
-            "time_span": "時間",
-            "title": "タイトル",
-            "link": "情報",
+            "date": "Date",
+            "time_span": "Time",
+            "title": "Title",
+            "link": "Info",
         }
     )
-    st.caption(f"件数: {len(df_view)}")
+    st.caption(f"Count: {len(df_view)}")
 
-    # 最右列「操作」＝予定ページへジャンプ
-    df_view["操作"] = df["date"].apply(_mk_jump)
-    df_view = df_view[["ID", "日付", "時間", "タイトル", "情報", "操作"]]
+    # Rightmost column "Action" → jump to Schedule page
+    df_view["Action"] = df["date"].apply(_mk_jump)
+    df_view = df_view[["ID", "Date", "Time", "Title", "Info", "Action"]]
 
     st.write(df_view.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-# --- 4) 行アクション（単発） ---
-st.subheader("行アクション")
-aid = st.number_input("対象IDを入力", min_value=0, step=1, value=0)
+# --- 4) Row actions (single) ---
+st.subheader("Row Actions")
+aid = st.number_input("Enter target ID", min_value=0, step=1, value=0)
 c1, c2 = st.columns([1, 1])
 
 with c1:
-    if st.button("Outlookに追加", use_container_width=True, disabled=(aid <= 0)):
+    if st.button("Add to Outlook", use_container_width=True, disabled=(aid <= 0)):
         cand = get_candidate(aid)
         if not cand:
-            st.error("対象IDが見つかりません。")
+            st.error("Target ID not found.")
         else:
             try:
                 token = get_access_token()
@@ -125,30 +124,30 @@ with c1:
                 )
                 if res:
                     st.success(
-                        f"作成完了: {res.get('subject')}（{cand['date']} {cand['start_time']}–{cand['end_time']}）"
+                        f"Created: {res.get('subject')} ({cand['date']} {cand['start_time']}–{cand['end_time']})"
                     )
-                    st.toast("Outlook作成に成功", icon="✅")
+                    st.toast("Successfully created in Outlook", icon="✅")
             except Exception as e:
-                st.error(f"作成中にエラー: {e}")
+                st.error(f"Error while creating: {e}")
 
 with c2:
     if st.button(
-        "ゴミ箱へ移動（削除）",
+        "Move to Trash (Delete)",
         type="secondary",
         use_container_width=True,
         disabled=(aid <= 0),
     ):
         cnt = delete_candidate(aid)
         if cnt == 1:
-            st.success(f"ID {aid} をゴミ箱へ移動しました。")
-            st.toast("削除（ゴミ箱）完了", icon="🗑️")
+            st.success(f"Moved ID {aid} to Trash.")
+            st.toast("Deleted (moved to Trash)", icon="🗑️")
             st.rerun()
         else:
-            st.warning("対象IDが見つかりませんでした。")
+            st.warning("Target ID not found.")
 
-# --- 5) 複数選択 → 一括操作（任意） ---
-st.subheader("一括操作（任意）")
-ids_str = st.text_input("カンマ区切りのID（例: 12,13,20）", "")
+# --- 5) Bulk operations (optional) ---
+st.subheader("Bulk Operations (Optional)")
+ids_str = st.text_input("Comma-separated IDs (e.g., 12,13,20)", "")
 b1, b2 = st.columns([1, 1])
 
 def _parse_ids(s: str) -> list[int]:
@@ -162,7 +161,7 @@ def _parse_ids(s: str) -> list[int]:
     return out
 
 with b1:
-    if st.button("一括でOutlook作成", disabled=(not ids_str.strip())):
+    if st.button("Create in Outlook (Bulk)", disabled=(not ids_str.strip())):
         token = get_access_token()
         ok, ng = 0, 0
         for cid in _parse_ids(ids_str):
@@ -181,14 +180,14 @@ with b1:
                 ok += 1 if res else 0
             except Exception:
                 ng += 1
-        st.info(f"作成 成功:{ok} 失敗:{ng}")
+        st.info(f"Creation  Success: {ok}  Failure: {ng}")
 
 with b2:
-    if st.button("一括でゴミ箱へ移動", type="secondary", disabled=(not ids_str.strip())):
+    if st.button("Move to Trash (Bulk)", type="secondary", disabled=(not ids_str.strip())):
         ok, ng = 0, 0
         ids = _parse_ids(ids_str)
         for cid in ids:
             ok += delete_candidate(cid)
         ng = len(ids) - ok
-        st.info(f"削除 成功:{ok} 失敗:{ng}")
+        st.info(f"Delete  Success: {ok}  Failure: {ng}")
         st.rerun()
