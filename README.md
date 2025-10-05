@@ -1,119 +1,105 @@
-portfolio-automation-tools
-Overview
-目的：個人の学業・生活・研究を効率化する小規模自動化アプリ群（calendar_sync / nutrition_tracker / contact_manager / exercise_dashboard）。
+# portfolio-automation-tools
 
+## Overview
 
-方針：最小構成で動作させ、共通モジュールに依存しない疎結合（現状 common/ 未使用）。
+* Purpose: A collection of small-scale automation apps designed to streamline personal academic, daily life, and research activities (calendar_sync / nutrition_tracker / contact_manager / exercise_dashboard).
+* Approach: Minimal configuration with loosely coupled architecture, independent of shared modules (common/ currently unused).
+* Target Audience: First-time users, interviewers, and future contributors.
 
+## Features
 
-対象読者：初見の利用者・面接官・将来のコントリビュータ。
+* **Exercise_Management**: Exercise logging, METs estimation, weekly trend visualization
+* **Housework&Shopping&Household_Management**: Housework notifications (mod/remainder method), task carryover management, shopping list display, expense visualization (statistics by category and payment method, monthly trends)
+* **Network_Management**: Basic attributes with tagging, search functionality, birthday notifications, photo integration
+* **Nutrition_Management**: Meal registration, nutrient estimation, weekly trend visualization
+* **Schedule_Management**: Outlook synchronization, schedule candidate registration, task work time logging, recommended daily task processing time display
+* **Task_Management**: Task inventory, daily task display
 
+## Repository Structure
 
-Features
-Exercise_Management：運動ログ、METs 推計、週次トレンド可視化
+```
+portfolio-automation-tools/
+├── apps/
+│   ├── Exercise_Management/
+│   ├── Housework&Shopping&Household_Management/
+│   ├── Network_Management/
+│   ├── Nutrition_Management/
+│   ├── Schedule_Management/
+│   └── Task_Management/
+├── docs/
+│   ├── architecture.md
+│   ├── ui_concept.pdf
+│   └── screenshots/
+├── LICENSE
+└── README.md
+```
 
+## Requirements
 
-Housework&Shopping&Household_Management：家事通知（mod/remainder 方式）、家事繰越管理、買い物リスト表示、支出可視化（ジャンル別・支払い手段別統計、月次推移）
+* Python 3.11+
+* Main libraries: streamlit, pandas, matplotlib, etc. (refer to requirements.txt in each app)
+* OS: Windows 11
 
+## Quick Start
 
-Network_Management：基本属性＋タグ付け、検索、誕生日通知、写真と紐づけ
+**Python: 3.11 recommended (3.10–3.12 compatible)**
 
+### 1. Clone the repository
 
-Nutrition_Management：食事登録、栄養素推計、週次トレンド可視化
+```bash
+git clone https://github.com/you/portfolio-automation-tools.git
+cd portfolio-automation-tools
+```
 
+### 2. Create and activate virtual environment
 
-Schedule_Management：Outlook同期、予定候補登録、タスク作業時間登録、日ごとのタスク処理推奨時間表示
+**macOS/Linux:**
 
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
 
-Task_Management：タスクストック、日ごとのタスク表示
-Repository Structure
-apps/
+**Windows (PowerShell):**
 
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
 
-Exercise_Management/
+### 3. Install dependencies (example: Nutrition Management)
 
+```bash
+cd apps/Nutrition_Management
+pip install -r requirements.txt
+```
 
-Housework&Shopping&Household_Managemen/
+### 4. Launch (change port value if conflicts occur)
 
+```bash
+streamlit run app.py --server.port 8501
+```
 
-Network_Management/
+**Note: To specify port via environment variable**
 
+**macOS/Linux:**
 
-Nutrition_Management/
+```bash
+export STREAMLIT_SERVER_PORT=8501
+```
 
+**Windows (PowerShell):**
 
-Schedule_Management/
+```powershell
+$Env:STREAMLIT_SERVER_PORT=8501
+```
 
+## Configuration
 
-Task_Management/
+* Each app in this repository works with default settings. No environment variable configuration required.
+* Databases use relative paths within the app (e.g., tasks.db).
+* No sensitive information is included.
 
+## License
 
-docs/
-
-
-architecture.md
-
-
-ui_concept.pdf
-
-
-screenshots/
-
-
-LICENSE / README.md
-
-
-Requirements
-Python 3.11+
-
-
-主要ライブラリ：streamlit, pandas, matplotlib 等（各 apps の requirements.txt を参照）
-
-
-OS：Windows 11
-
-
-Quick Start
-Python: 3.11 推奨（3.10–3.12 可）
-リポジトリ取得
- git clone https://github.com/you/portfolio-automation-tools.git
- cd portfolio-automation-tools
-
-
-仮想環境の作成と有効化
- macOS/Linux:
- python -m venv .venv
- source .venv/bin/activate
- Windows (PowerShell):
- python -m venv .venv
- .venv\Scripts\Activate.ps1
-
-
-依存関係のインストール（例：栄養管理）
- cd apps/Nutrition_Management
- pip install -r requirements.txt
-
-
-起動（ポート衝突時は値を変更）
- streamlit run app.py --server.port 8501
-
-
-補足：環境変数でポートを指定する場合
- macOS/Linux: export STREAMLIT_SERVER_PORT=8501
- Windows (PowerShell): $Env:STREAMLIT_SERVER_PORT=8501
-
-
-Configuration
-本リポジトリの各アプリは既定設定で動作します。環境変数の設定は不要です。
-
-
-データベースはアプリ内の相対パス（例：tasks.db）で完結します。
-
-
-機密情報は含まれていません。
-
-
-
-License
-MIT
-
+* MIT
