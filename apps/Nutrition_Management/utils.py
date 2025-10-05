@@ -130,7 +130,7 @@ def plot_pie_breakdown(df_item: pd.DataFrame, nutrient: str, days: int):
 
     fig, ax = plt.subplots()
     if sum(sizes) == 0:
-        ax.set_title(f"{nutrient}：データなし")
+        ax.set_title(f"{nutrient}: no data")
         return fig
     ax.pie(
         sizes,
@@ -154,7 +154,7 @@ def plot_bar_top_items(
 ):
     if df_item.empty:
         fig, ax = plt.subplots()
-        ax.set_title(f"{nutrient}：データなし")
+        ax.set_title(f"{nutrient}: no data")
         ax.set_xlabel(nutrient)
         return fig
     total_val = float(df_item[nutrient].sum())
