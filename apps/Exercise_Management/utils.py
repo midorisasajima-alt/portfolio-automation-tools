@@ -125,7 +125,7 @@ def summarize_by_item(start: date, end: date) -> pd.DataFrame:
 def plot_line_with_goal(df: pd.DataFrame, window_days: int):
     fig, ax = plt.subplots()
     if df.empty:
-        ax.set_title("Total：データなし")
+        ax.set_title("Total: no data")
         return fig
 
     ax.plot(
@@ -152,7 +152,7 @@ def plot_line_with_goal(df: pd.DataFrame, window_days: int):
 def plot_bar_top_items(df_items: pd.DataFrame, topk: int = 15):
     fig, ax = plt.subplots()
     if df_items.empty:
-        ax.set_title("Items：データなし")
+        ax.set_title("Items: no data")
         ax.set_xlabel("METs·min")
         return fig
 
@@ -212,7 +212,7 @@ def plot_pie_goaltile(df_items: pd.DataFrame, days: int, cols: int = 5):
     GOAL = float(GOAL_METS_MIN_PER_DAY)
     if GOAL <= 0:
         fig, ax = plt.subplots()
-        ax.set_title("Goal Tiles：目標が0以下です")
+        ax.set_title("Goal Tiles: The goal is below 0")
         return fig
 
     # --- データ整形 ---
