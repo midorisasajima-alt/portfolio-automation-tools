@@ -7,7 +7,7 @@ DB_PATH = "exercise.db"
 GOAL_METS_MIN_PER_DAY = 200
 
 # 表示設定
-APP_TITLE = "運動管理（METs・分 トラッキング）"
+APP_TITLE = "Exercise Management (METs·min Tracking)"
 
 # ========================= config.py（最小例：目標値と配色定義） =========================
 # -*- coding: utf-8 -*-
