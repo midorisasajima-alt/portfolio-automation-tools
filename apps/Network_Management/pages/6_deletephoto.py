@@ -1,36 +1,38 @@
-# pages/40_写真削除.py
+# ==========================================================
+# pages/40_delete_photos.py
+# ==========================================================
 import io
 from pathlib import Path
 from typing import List, Tuple
 from PIL import Image, UnidentifiedImageError
 import streamlit as st
 
-# db.py から読み込み（提示の定義を前提）
+# Load from db.py (assumes provided definitions)
 from db import SessionLocal, Person, Photo, DATA_DIR
 
-st.set_page_config(page_title="写真削除", page_icon="🗑", layout="wide")
+st.set_page_config(page_title="Delete Photos", page_icon="🗑", layout="wide")
 
-# ========== ユーティリティ ==========
+# ========== Utilities ==========
 
 def resolve_path(rel_or_abs: str) -> Path:
-    """Photo.file_path（相対/絶対）を絶対パスに解決。原則 data/ 相対を想定。"""
+    """Resolve Photo.file_path (relative/absolute) to an absolute path. Assumes relative to data/ by default."""
     p = Path(rel_or_abs)
     return p if p.is_absolute() else (DATA_DIR / p)
 
 def open_image_safe(path: Path) -> Image.Image | None:
-    """画像を安全に開く。壊れている場合はNone。"""
+    """Safely open an image. Return None if corrupted/unreadable."""
     if not path.exists() or not path.is_file():
         return None
     try:
         with path.open("rb") as f:
             img = Image.open(io.BytesIO(f.read()))
-            img.load()  # Pillowの遅延読みを確定
+            img.load()  # finalize Pillow's lazy loading
         return img
     except (UnidentifiedImageError, OSError):
         return None
 
 def list_person_options(session) -> List[Tuple[str, int]]:
-    """セレクトボックス用に (表示名, person.id) を返す。"""
+    """Return (label, person.id) tuples for selectbox options."""
     people = (
         session.query(Person)
         .order_by(Person.name.asc(), Person.id.asc())
@@ -47,18 +49,18 @@ def fetch_photos(
     offset: int,
     limit: int,
 ) -> Tuple[List[Photo], int]:
-    """検索・並べ替え・ページング付きでPhotoを取得。総件数も返す。"""
+    """Fetch Photo records with search/sort/pagination. Returns (rows, total_count)."""
     query = session.query(Photo)
     if person_id is not None:
         query = query.filter(Photo.person_id == person_id)
     if q:
-        # captionの部分一致 + ファイル名の部分一致
+        # Partial match on caption and filename
         like = f"%{q}%"
         query = query.filter(
             (Photo.caption.ilike(like)) | (Photo.file_path.ilike(like))
         )
 
-    # 並べ替え
+    # Sorting
     order_col = {
         "created_at": Photo.created_at,
         "id": Photo.id,
@@ -74,7 +76,7 @@ def fetch_photos(
     return rows, total
 
 def delete_photos_by_ids(session, photo_ids: List[int]) -> Tuple[int, int, List[str]]:
-    """与えられたPhoto.idをDBおよびファイルから削除。戻り値: (成功件数, 失敗件数, メッセージ)"""
+    """Delete given Photo.id records from DB and filesystem. Returns (ok_count, error_count, messages)."""
     ok = 0
     ng = 0
     msgs: List[str] = []
@@ -82,62 +84,62 @@ def delete_photos_by_ids(session, photo_ids: List[int]) -> Tuple[int, int, List[
         photo = session.query(Photo).get(pid)
         if not photo:
             ng += 1
-            msgs.append(f"id={pid}: レコードが見つかりません")
+            msgs.append(f"id={pid}: record not found")
             continue
         abs_path = resolve_path(photo.file_path)
-        # 先にファイル削除（存在しない場合はスキップ）
+        # Delete file first (skip if missing)
         try:
             if abs_path.exists():
                 abs_path.unlink()
         except Exception as e:
-            # ファイル削除に失敗してもDB側は削除し、メッセージに記録
-            msgs.append(f"id={pid}: ファイル削除失敗 ({abs_path}): {e}")
+            # Even if file deletion fails, delete DB record; record message.
+            msgs.append(f"id={pid}: file deletion failed ({abs_path}): {e}")
 
         try:
             session.delete(photo)
             ok += 1
         except Exception as e:
             ng += 1
-            msgs.append(f"id={pid}: DB削除失敗: {e}")
+            msgs.append(f"id={pid}: DB deletion failed: {e}")
 
-    # まとめてコミット
+    # Commit as a batch
     try:
         session.commit()
     except Exception as e:
         session.rollback()
-        # ここでエラーの場合、どのレコードまで反映されたかはDB依存。利用者に注意喚起。
-        msgs.append(f"コミット失敗: {e}")
+        # On error here, which records committed is DB-dependent; notify user.
+        msgs.append(f"Commit failed: {e}")
     return ok, ng, msgs
 
-# ========== サイドバー（検索条件） ==========
+# ========== Sidebar (Search Criteria) ==========
 
-st.title("🗑 写真削除")
+st.title("🗑 Delete Photos")
 
 with st.sidebar:
-    st.header("検索条件")
+    st.header("Search Criteria")
 
     with SessionLocal() as session:
         person_opts = list_person_options(session)
 
     target_person = st.selectbox(
-        "人物で絞り込み（任意）", ["すべて"] + [lbl for (lbl, _) in person_opts], index=0
+        "Filter by person (optional)", ["All"] + [lbl for (lbl, _) in person_opts], index=0
     )
     person_id = None
-    if target_person != "すべて":
-        # ラベル→id変換
+    if target_person != "All":
+        # Map label → id
         idx = [lbl for (lbl, _) in person_opts].index(target_person)
         person_id = person_opts[idx][1]
 
-    q = st.text_input("キーワード（キャプション／ファイル名 部分一致）", "")
+    q = st.text_input("Keyword (partial match in caption/filename)", "")
 
-    order_key = st.selectbox("並べ替え項目", ["created_at", "id", "file_path"], index=0)
-    ascending = st.toggle("昇順", value=False)
+    order_key = st.selectbox("Sort by", ["created_at", "id", "file_path"], index=0)
+    ascending = st.toggle("Ascending", value=False)
 
-    page_size = st.number_input("ページサイズ", min_value=6, max_value=120, value=24, step=6)
-    page_num = st.number_input("ページ番号（1開始）", min_value=1, value=1, step=1)
+    page_size = st.number_input("Page size", min_value=6, max_value=120, value=24, step=6)
+    page_num = st.number_input("Page number (starts at 1)", min_value=1, value=1, step=1)
     offset = (page_num - 1) * page_size
 
-# ========== 検索・表示 ==========
+# ========== Search & Display ==========
 
 with SessionLocal() as session:
     photos, total = fetch_photos(
@@ -150,13 +152,13 @@ with SessionLocal() as session:
         limit=page_size,
     )
 
-    st.caption(f"該当: {total} 件（表示: {len(photos)} 件）")
+    st.caption(f"Matches: {total} (showing: {len(photos)})")
 
-    # 選択状態保持用
+    # Keep selection state
     if "delete_selection" not in st.session_state:
         st.session_state.delete_selection = set()
 
-    # グリッド表示
+    # Grid
     cols_per_row = 4
     rows = (len(photos) + cols_per_row - 1) // cols_per_row
     selected_ids_in_page: List[int] = []
@@ -174,7 +176,7 @@ with SessionLocal() as session:
             if img is not None:
                 box.image(img, use_column_width=True)
             else:
-                box.info("画像を表示できません")
+                box.info("Unable to display image")
 
             box.write(f"id: {ph.id}")
             box.write(f"file: {ph.file_path}")
@@ -183,56 +185,56 @@ with SessionLocal() as session:
             if ph.created_at:
                 box.caption(f"created: {ph.created_at}")
 
-            # 単体削除ボタン
-            del_one = box.button(f"この写真を削除", key=f"del_one_{ph.id}")
-            sel = box.checkbox("一括削除に追加", key=f"sel_{ph.id}", value=False)
+            # Delete single item
+            del_one = box.button("Delete this photo", key=f"del_one_{ph.id}")
+            sel = box.checkbox("Add to bulk delete", key=f"sel_{ph.id}", value=False)
             if sel:
                 selected_ids_in_page.append(ph.id)
             if del_one:
                 ok, ng, msgs = delete_photos_by_ids(session, [ph.id])
                 if ok:
-                    st.success(f"id={ph.id} を削除しました（DBとファイル）。")
+                    st.success(f"Deleted id={ph.id} (DB and file).")
                 if ng:
-                    st.error(f"id={ph.id} の削除で問題が発生しました。")
+                    st.error(f"An issue occurred while deleting id={ph.id}.")
                 for m in msgs:
                     st.caption(m)
-                # ボタン押下後は自動的に再実行されるため、明示rerun不要
+                # App will auto-rerun after button press; no explicit rerun needed
 
-    # 一括削除（ページ内選択＋任意のID手入力も可能）
+    # Bulk delete (selection in this page + optional manual IDs)
     st.divider()
-    st.subheader("一括削除")
+    st.subheader("Bulk Delete")
 
-    manual_ids = st.text_input("追加のPhoto ID（半角カンマ区切り、任意）", "")
+    manual_ids = st.text_input("Additional Photo IDs (comma-separated, optional)", "")
     extra_ids = []
     if manual_ids.strip():
         try:
             extra_ids = [int(s.strip()) for s in manual_ids.split(",") if s.strip()]
         except ValueError:
-            st.error("Photo ID の形式が不正です（整数、カンマ区切り）。")
+            st.error("Invalid Photo ID format (integers, comma-separated).")
 
     merged_ids = sorted(set(selected_ids_in_page + extra_ids))
 
-    st.write(f"削除候補: {merged_ids if merged_ids else '（なし）'}")
+    st.write(f"Candidates: {merged_ids if merged_ids else '(none)'}")
 
     colA, colB = st.columns([1, 2])
     with colA:
-        confirm = st.checkbox("削除を確認（取り消し不可）", value=False)
+        confirm = st.checkbox("Confirm deletion (irreversible)", value=False)
     with colB:
-        if st.button("選択した写真を一括削除", type="primary", disabled=not (confirm and merged_ids)):
+        if st.button("Delete selected photos", type="primary", disabled=not (confirm and merged_ids)):
             if not merged_ids:
-                st.warning("削除対象が選択されていません。")
+                st.warning("No deletion targets selected.")
             else:
                 ok, ng, msgs = delete_photos_by_ids(session, merged_ids)
                 if ok:
-                    st.success(f"{ok} 件を削除しました。")
+                    st.success(f"Deleted {ok} item(s).")
                 if ng:
-                    st.error(f"{ng} 件で問題が発生しました。")
+                    st.error(f"Issues occurred for {ng} item(s).")
                 for m in msgs:
                     st.caption(m)
-                # 自動再実行により一覧は更新されます
+                # The list will refresh due to auto-rerun
 
-# ========== 操作上の注意 ==========
+# ========== Operational Notes ==========
 st.info(
-    "注意: 削除は取り消せません。Photo.file_path は data/ 以下の相対パスを前提にしています。"
-    " 画像が壊れている場合はプレビューできませんが、削除は可能です。"
+    "Note: Deletions cannot be undone. Photo.file_path is assumed to be a path relative to data/. "
+    "If an image is corrupted, it may not preview but can still be deleted."
 )
