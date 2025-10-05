@@ -5,21 +5,21 @@ from db import init_db, SessionLocal, Person
 from utils import upsert_person, delete_person
 
 init_db()
-st.set_page_config(page_title="編集・削除（検索対応）", layout="wide")
-st.title("編集・削除")
+st.set_page_config(page_title="Edit/Delete (Search Supported)", layout="wide")
+st.title("Edit/Delete")
 
-# --- 検索UI ---
-name_q = st.text_input("名前で検索（部分一致）", value="")
-country_q = st.text_input("国で検索（部分一致）", value="")
-notes_q = st.text_input("メモ内を部分検索（大文字小文字を無視）", value="")
+# --- Search UI ---
+name_q = st.text_input("Search by name (partial match)", value="")
+country_q = st.text_input("Search by country (partial match)", value="")
+notes_q = st.text_input("Search within notes (case-insensitive partial match)", value="")
 
 if "edit_search_trigger" not in st.session_state:
     st.session_state["edit_search_trigger"] = False
 
-if st.button("検索"):
+if st.button("Search"):
     st.session_state["edit_search_trigger"] = True
 
-# --- データ取得（検索適用） ---
+# --- Data retrieval (apply search filters) ---
 with SessionLocal() as sess:
     q = sess.query(Person)
     if st.session_state.get("edit_search_trigger"):
@@ -28,18 +28,18 @@ with SessionLocal() as sess:
         if country_q.strip():
             q = q.filter(Person.country.ilike(f"%{country_q.strip()}%"))
         if notes_q.strip():
-            # SQLite対応：COALESCE(notes, '') を小文字化して LIKE
+            # SQLite-compatible: lowercase COALESCE(notes, '') for LIKE search
             q = q.filter(
                 func.lower(func.coalesce(Person.notes, "")).like(f"%{notes_q.strip().lower()}%")
             )
     persons = q.order_by(Person.name.asc()).all()
 
 if not persons:
-    st.info("該当する人物がいません。検索条件を調整してください。")
+    st.info("No matching records found. Please adjust your search criteria.")
     st.stop()
 
 options = {f"{p.name} / {p.country or '-'} / id:{p.id}": p.id for p in persons}
-sel = st.selectbox("人物を選択", options=list(options.keys()))
+sel = st.selectbox("Select a person", options=list(options.keys()))
 person_id = options[sel] if sel else None
 
 if person_id:
@@ -47,23 +47,23 @@ if person_id:
         p = sess.get(Person, person_id)
 
     with st.form("edit_form"):
-        name = st.text_input("名前*", value=p.name or "")
+        name = st.text_input("Name*", value=p.name or "")
         instagram = st.text_input("Instagram", value=p.instagram or "")
         whatsapp = st.text_input("WhatsApp", value=p.whatsapp or "")
         linkedin = st.text_input("LinkedIn", value=p.linkedin or "")
-        country = st.text_input("出身国", value=p.country or "")
-        region = st.text_input("出身地域", value=p.region or "")
-        work_history = st.text_area("職歴（自由記述）", value=p.work_history or "", height=120)
-        birthday = st.date_input("誕生日", value=p.birthday)
-        residence = st.text_input("住んでいるところ", value=p.residence or "")
-        photo_album = st.text_input("写真集の情報", value=p.photo_album or "")
-        notes = st.text_area("メモ", value=p.notes or "", height=120)
+        country = st.text_input("Country of origin", value=p.country or "")
+        region = st.text_input("Region of origin", value=p.region or "")
+        work_history = st.text_area("Work history (free description)", value=p.work_history or "", height=120)
+        birthday = st.date_input("Birthday", value=p.birthday)
+        residence = st.text_input("Current residence", value=p.residence or "")
+        photo_album = st.text_input("Photo album information", value=p.photo_album or "")
+        notes = st.text_area("Notes", value=p.notes or "", height=120)
 
         colu1, colu2 = st.columns(2)
         with colu1:
-            saved = st.form_submit_button("保存")
+            saved = st.form_submit_button("Save")
         with colu2:
-            deleted = st.form_submit_button("削除", use_container_width=True)
+            deleted = st.form_submit_button("Delete", use_container_width=True)
 
         if saved:
             with SessionLocal() as sess:
@@ -82,11 +82,11 @@ if person_id:
                     photo_album=photo_album.strip() or None,
                     notes=notes.strip() or None,
                 )
-            st.success("保存しました。")
+            st.success("Saved successfully.")
             st.rerun()
 
         if deleted:
             with SessionLocal() as sess:
                 delete_person(sess, p.id)
-            st.success("削除しました。")
+            st.success("Deleted successfully.")
             st.rerun()
