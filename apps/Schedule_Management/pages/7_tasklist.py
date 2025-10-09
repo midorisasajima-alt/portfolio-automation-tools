@@ -1,6 +1,3 @@
-# =============================
-# pages/7_TaskList.py
-# -----------------------------
 import streamlit as st
 from pathlib import Path
 from db import list_tasks, update_task, delete_task, list_task_proofs
@@ -145,3 +142,4 @@ with tab_done:
                     if st.button("Cancel", key=f"del_ng_{key_base}"):
                         st.session_state.pop(confirm_key, None)
                         _rerun()
+
