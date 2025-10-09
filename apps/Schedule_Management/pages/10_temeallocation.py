@@ -1,6 +1,3 @@
-# =============================
-# pages/10_TimeAllocation.py
-# -----------------------------
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -181,3 +178,4 @@ with c1:
     )
 
     st.altair_chart(pie + labels, use_container_width=True)
+
