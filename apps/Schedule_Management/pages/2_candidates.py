@@ -1,6 +1,3 @@
-# =============================
-# pages/2_Candidates.py
-# -----------------------------
 import streamlit as st
 from datetime import date
 import pandas as pd
@@ -121,3 +118,4 @@ for c in cands:
                 else:
                     st.session_state[f"confirm_{c['id']}"] = True
                     st.warning("Press again to confirm deletion.")
+
