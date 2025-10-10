@@ -39,6 +39,6 @@ if person_id:
         p = sess.get(Person, person_id)
         if p and p.photos:
             for ph in p.photos[:12]:
-                st.image(ph.file_path, caption=ph.caption or "", use_container_width=True)
+                st.image(ph.file_path, caption=ph.caption or "", use_column_width_width=True)
         else:
             st.caption("No photos available")

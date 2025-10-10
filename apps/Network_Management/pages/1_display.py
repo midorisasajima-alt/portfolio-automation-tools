@@ -48,6 +48,6 @@ if st.session_state.get("search_trigger"):
                 with col2:
                     if p.photos:
                         for ph in p.photos[:6]:
-                            st.image(ph.file_path, caption=ph.caption or "", use_container_width=True)
+                            st.image(ph.file_path, caption=ph.caption or "", use_column_width_width=True)
                     else:
                         st.caption("No photos available")

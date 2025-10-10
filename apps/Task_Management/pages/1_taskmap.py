@@ -62,6 +62,6 @@ fig = px.scatter(
     custom_data=["id"]
 )
 fig.update_traces(marker=dict(size=14, line=dict(width=0)))
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, use_column_width_width=True)
 
 st.caption("For detailed editing, please go to the 'Task Search and Edit' page.")

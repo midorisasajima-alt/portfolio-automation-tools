@@ -108,7 +108,7 @@ aid = st.number_input("Enter target ID", min_value=0, step=1, value=0)
 c1, c2 = st.columns([1, 1])
 
 with c1:
-    if st.button("Add to Outlook", use_container_width=True, disabled=(aid <= 0)):
+    if st.button("Add to Outlook", use_column_width_width=True, disabled=(aid <= 0)):
         cand = get_candidate(aid)
         if not cand:
             st.error("Target ID not found.")
@@ -134,7 +134,7 @@ with c2:
     if st.button(
         "Move to Trash (Delete)",
         type="secondary",
-        use_container_width=True,
+        use_column_width_width=True,
         disabled=(aid <= 0),
     ):
         cnt = delete_candidate(aid)

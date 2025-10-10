@@ -104,7 +104,7 @@ with tab_done:
                     col = cols[i % 3]
                     with col:
                         if path and path.suffix.lower() in [".png", ".jpg", ".jpeg", ".gif", ".webp"] and path.exists():
-                            st.image(str(path), caption=f"{path.name} ({ts})", use_container_width=True)
+                            st.image(str(path), caption=f"{path.name} ({ts})", use_column_width_width=True)
                         elif path and path.suffix.lower() == ".pdf" and path.exists():
                             with open(path, "rb") as f:
                                 st.download_button(

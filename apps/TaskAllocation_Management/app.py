@@ -75,4 +75,4 @@ for m in SIX_MINISTRIES:
 g.edge("百司", "御史台")
 g.edge("御史台", "王")
 
-st.graphviz_chart(g, use_container_width=True)
+st.graphviz_chart(g, use_column_width_width=True)

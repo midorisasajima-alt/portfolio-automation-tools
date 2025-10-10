@@ -14,7 +14,7 @@ data = list_birthdays_today_and_tomorrow()
 st.subheader("Today's Birthdays")
 if data["today"]:
     df_today = pd.DataFrame(data["today"])  # columns: id, name, age, birthday
-    st.dataframe(df_today[["name", "age", "birthday"]], use_container_width=True)
+    st.dataframe(df_today[["name", "age", "birthday"]], use_column_width_width=True)
 else:
     st.info("None")
 
@@ -22,6 +22,6 @@ else:
 st.subheader("Tomorrow's Birthdays")
 if data["tomorrow"]:
     df_tomorrow = pd.DataFrame(data["tomorrow"])  # columns: id, name, age, birthday
-    st.dataframe(df_tomorrow[["name", "age", "birthday"]], use_container_width=True)
+    st.dataframe(df_tomorrow[["name", "age", "birthday"]], use_column_width_width=True)
 else:
     st.info("None")
