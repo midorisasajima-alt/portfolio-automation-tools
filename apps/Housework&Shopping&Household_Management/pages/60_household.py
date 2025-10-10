@@ -76,7 +76,7 @@ for tab, month in zip(tabs, months_desc):
                 leg = ax.legend(wedges, labels, loc='center left', bbox_to_anchor=(1.0, 0.5), frameon=False)
                 for txt in leg.get_texts():
                     txt.set_color("white")
-                st.pyplot(fig, use_column_width_width=False)
+                st.pyplot(fig, use_container_width_width=False)
 
 
         # Middle: Tabs by genre with bar charts
@@ -157,7 +157,7 @@ for tab, month in zip(tabs, months_desc):
                     for txt in legp.get_texts():
                         txt.set_color("white")
 
-                    st.pyplot(figp, use_column_width_width=False)
+                    st.pyplot(figp, use_container_width_width=False)
 
                 else:
                     st.caption("No payment method amounts available.")

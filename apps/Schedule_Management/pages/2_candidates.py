@@ -64,7 +64,7 @@ if rows:
         ),
     )
 
-    st.altair_chart(chart, use_column_width_width=True)
+    st.altair_chart(chart, use_container_width_width=True)
 else:
     st.info("No data available for this date.")
 

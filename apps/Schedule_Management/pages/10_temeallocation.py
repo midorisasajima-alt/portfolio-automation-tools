@@ -142,7 +142,7 @@ src = pd.DataFrame({
 
 c1, c2 = st.columns([1, 1])
 with c2:
-    st.dataframe(src, use_column_width_width=True)
+    st.dataframe(src, use_container_width_width=True)
 
 with c1:
     CAT_ORDER = ["Free Time", "Schedule", "Routine", "Sleep", "Tasks"]
@@ -177,5 +177,5 @@ with c1:
         text="category:N",
     )
 
-    st.altair_chart(pie + labels, use_column_width_width=True)
+    st.altair_chart(pie + labels, use_container_width_width=True)
 

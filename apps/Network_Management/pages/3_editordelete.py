@@ -63,7 +63,7 @@ if person_id:
         with colu1:
             saved = st.form_submit_button("Save")
         with colu2:
-            deleted = st.form_submit_button("Delete", use_column_width_width=True)
+            deleted = st.form_submit_button("Delete", use_container_width_width=True)
 
         if saved:
             with SessionLocal() as sess:

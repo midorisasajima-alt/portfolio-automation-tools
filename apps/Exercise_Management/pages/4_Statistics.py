@@ -56,4 +56,4 @@ with TAB_BREAK:
 # ----- Tab: Table -----
 with TAB_TABLE:
     df_daily = load_daily_totals(start_b, end_b)
-    st.dataframe(df_daily, use_column_width=True)
+    st.dataframe(df_daily, use_container_width=True)
